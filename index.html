@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Indian Sign Language Recognition - Bridging communication for the deaf and mute community with AI-powered sign language translation">
+    <title>ISL Recognition | Indian Sign Language to Global Scale</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="container nav-container">
+            <div class="nav-brand">
+                <h1 class="brand-text">ISL<span class="highlight">Recognition</span></h1>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="#home" class="nav-link">Home</a></li>
+                <li><a href="#demo" class="nav-link">Live Demo</a></li>
+                <li><a href="#learn" class="nav-link">Learn ISL</a></li>
+                <li><a href="#about" class="nav-link">About</a></li>
+            </ul>
+            <button class="menu-toggle" id="menuToggle">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section id="home" class="hero">
+        <div class="hero-background"></div>
+        <div class="container hero-container">
+            <div class="hero-content">
+                <h1 class="hero-title">
+                    Bringing <span class="gradient-text">Indian Sign Language</span> 
+                    to the World
+                </h1>
+                <p class="hero-subtitle">
+                    Empowering the deaf and mute community through AI-powered sign language recognition. 
+                    Converting signs to text, text to signs, and breaking communication barriers globally.
+                </p>
+                <div class="hero-cta">
+                    <a href="#demo" class="btn btn-primary">Try Live Demo</a>
+                    <a href="#learn" class="btn btn-secondary">Learn ISL</a>
+                </div>
+                <div class="hero-stats">
+                    <div class="stat">
+                        <div class="stat-number">26+</div>
+                        <div class="stat-label">Alphabet Signs</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-number">50+</div>
+                        <div class="stat-label">Common Words</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-number">90%+</div>
+                        <div class="stat-label">Accuracy</div>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="hand-illustration">
+                    <img src="assets/images/hero-hands.png" alt="ISL Hand Signs" class="hero-image">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features">
+        <div class="container">
+            <h2 class="section-title">How It Works</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <rect x="2" y="6" width="20" height="12" rx="2" stroke-width="2"/>
+                            <circle cx="12" cy="12" r="2" fill="currentColor"/>
+                        </svg>
+                    </div>
+                    <h3>Sign to Text</h3>
+                    <p>Real-time recognition of ISL alphabets and words using your webcam. Our AI identifies hand gestures instantly.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke-width="2"/>
+                            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke-width="2"/>
+                        </svg>
+                    </div>
+                    <h3>Text to Sign</h3>
+                    <p>Type any text and see the corresponding ISL signs. Perfect for learning and communication.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" stroke-width="2"/>
+                            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" stroke-width="2"/>
+                        </svg>
+                    </div>
+                    <h3>Learn ISL</h3>
+                    <p>Interactive learning module with complete alphabet reference and common phrases to get you started.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Live Demo Section -->
+    <section id="demo" class="demo">
+        <div class="container">
+            <h2 class="section-title">Live Recognition Demo</h2>
+            <p class="section-subtitle">Experience real-time ISL recognition powered by AI</p>
+            
+            <div class="demo-container">
+                <!-- Sign to Text -->
+                <div class="demo-panel">
+                    <h3 class="panel-title">
+                        <span class="icon">📹</span>
+                        Sign Language to Text
+                    </h3>
+                    <div class="demo-modes">
+                        <button class="mode-btn active" data-mode="alphabet">Alphabet (A-Z)</button>
+                        <button class="mode-btn" data-mode="word">Words</button>
+                    </div>
+                    <div class="video-container">
+                        <video id="webcam" autoplay playsinline></video>
+                        <canvas id="canvas" style="display: none;"></canvas>
+                        <div class="video-overlay" id="videoOverlay">
+                            <button class="btn btn-primary" id="startWebcam">Start Camera</button>
+                        </div>
+                    </div>
+                    <div class="prediction-result">
+                        <div class="result-main" id="predictionResult">
+                            <span class="result-label">Waiting for recognition...</span>
+                        </div>
+                        <div class="confidence-bars" id="confidenceBars"></div>
+                    </div>
+                </div>
+
+                <!-- Text to Sign -->
+                <div class="demo-panel">
+                    <h3 class="panel-title">
+                        <span class="icon">✍️</span>
+                        Text to Sign Language
+                    </h3>
+                    <div class="text-input-container">
+                        <input 
+                            type="text" 
+                            id="textInput" 
+                            class="text-input" 
+                            placeholder="Type a message (e.g., hello, thank you)"
+                        >
+                        <button class="btn btn-primary" id="convertBtn">Convert to Signs</button>
+                    </div>
+                    <div class="signs-output" id="signsOutput">
+                        <div class="placeholder-text">
+                            <p>Enter text above to see ISL signs</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Learn ISL Section -->
+    <section id="learn" class="learn">
+        <div class="container">
+            <h2 class="section-title">Learn Indian Sign Language</h2>
+            <p class="section-subtitle">Master the ISL alphabet and common phrases</p>
+            
+            <div class="alphabet-grid" id="alphabetGrid">
+                <!-- Alphabet cards will be generated by JavaScript -->
+            </div>
+        </div>
+    </section>
+
+    <!-- About Section -->
+    <section id="about" class="about">
+        <div class="container">
+            <div class="about-content">
+                <div class="about-text">
+                    <h2 class="section-title">Our Mission</h2>
+                    <p class="about-description">
+                        We are dedicated to bringing <strong>Indian Sign Language</strong> to a global scale, 
+                        empowering the deaf and mute community with technology-driven solutions. 
+                        Sign language is the primary means of communication for millions, yet it remains 
+                        largely overlooked by the hearing population.
+                    </p>
+                    <p class="about-description">
+                        Our AI-powered platform bridges this communication gap by providing real-time 
+                        sign language recognition and translation, making ISL accessible to everyone.
+                    </p>
+                    <div class="impact-stats">
+                        <div class="impact-stat">
+                            <div class="impact-number">63M+</div>
+                            <div class="impact-label">Deaf people in India</div>
+                        </div>
+                        <div class="impact-stat">
+                            <div class="impact-number">700+</div>
+                            <div class="impact-label">Different sign languages worldwide</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="about-visual">
+                    <div class="tech-stack">
+                        <h3>Powered By</h3>
+                        <div class="tech-badges">
+                            <span class="tech-badge">TensorFlow</span>
+                            <span class="tech-badge">MediaPipe</span>
+                            <span class="tech-badge">OpenCV</span>
+                            <span class="tech-badge">Deep Learning</span>
+                            <span class="tech-badge">CNN</span>
+                            <span class="tech-badge">LSTM</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <h3>ISL<span class="highlight">Recognition</span></h3>
+                    <p>Bridging communication barriers through AI</p>
+                </div>
+                <div class="footer-links">
+                    <h4>Quick Links</h4>
+                    <a href="#home">Home</a>
+                    <a href="#demo">Demo</a>
+                    <a href="#learn">Learn</a>
+                    <a href="#about">About</a>
+                </div>
+                <div class="footer-info">
+                    <h4>Tech Expo Project</h4>
+                    <p>Indian Sign Language Recognition System</p>
+                    <p>&copy; 2025 | Educational Project</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script src="js/app.js"></script>
+</body>
+</html>
