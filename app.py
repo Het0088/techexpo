@@ -1,8 +1,3 @@
-"""
-Enhanced Flask Backend with Prediction Smoothing + NLP
-For accurate predictions and English-to-ISL conversion
-"""
-
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import cv2
@@ -14,7 +9,6 @@ import json
 from tensorflow import keras
 from collections import deque, Counter
 
-# Load spaCy for NLP
 nlp = None
 USE_SPACY = False
 
@@ -22,15 +16,14 @@ try:
     import spacy
     nlp = spacy.load("en_core_web_sm")
     USE_SPACY = True
-    print("✅ spaCy NLP loaded successfully")
+    print("spaCy NLP loaded")
 except Exception as e:
-    print(f"⚠️  spaCy not available: {e}")
-    print("   Using rule-based NLP fallback")
+    print(f"spaCy not available: {e}")
+    print("Using rule-based NLP")
 
 app = Flask(__name__, static_folder='.')
 CORS(app)
 
-# Model paths
 ALPHABET_MODEL_PATH = 'ml/models/isl_landmark_2hand_best.h5'
 ALPHABET_CLASS_PATH = 'ml/models/landmark_2hand_class_indices.json'
 WORD_MODEL_PATH = 'ml/models/isl_words_best.h5'
@@ -44,32 +37,10 @@ class EnhancedISLPredictor:
         self.word_classes = None
         self.sequence_buffer = []
         self.sequence_length = 30
-        self.prediction_history = deque(maxlen=5)  # Smooth predictions
+        self.prediction_history = deque(maxlen=5)
         
-        # Load models
-        try:
-            if os.path.exists(ALPHABET_MODEL_PATH):
-                self.alphabet_model = keras.models.load_model(ALPHABET_MODEL_PATH)
-                print("✅ Alphabet model loaded")
-            if os.path.exists(ALPHABET_CLASS_PATH):
-                with open(ALPHABET_CLASS_PATH, 'r') as f:
-                    self.alphabet_classes = json.load(f)
-                print(f"✅ Alphabet classes: {len(self.alphabet_classes)}")
-        except Exception as e:
-            print(f"❌ Alphabet model error: {e}")
+        self._load_models()
         
-        try:
-            if os.path.exists(WORD_MODEL_PATH):
-                self.word_model = keras.models.load_model(WORD_MODEL_PATH)
-                print("✅ Word model loaded")
-            if os.path.exists(WORD_CLASS_PATH):
-                with open(WORD_CLASS_PATH, 'r') as f:
-                    self.word_classes = json.load(f)
-                print(f"✅ Word classes: {len(self.word_classes)}")
-        except Exception as e:
-            print(f"❌ Word model error: {e}")
-        
-        # MediaPipe
         self.mp_hands = mp.solutions.hands
         self.hands = self.mp_hands.Hands(
             static_image_mode=False,
@@ -78,8 +49,30 @@ class EnhancedISLPredictor:
             min_tracking_confidence=0.5
         )
     
+    def _load_models(self):
+        try:
+            if os.path.exists(ALPHABET_MODEL_PATH):
+                self.alphabet_model = keras.models.load_model(ALPHABET_MODEL_PATH)
+                print("Alphabet model loaded")
+            
+            if os.path.exists(ALPHABET_CLASS_PATH):
+                with open(ALPHABET_CLASS_PATH, 'r') as f:
+                    self.alphabet_classes = json.load(f)
+        except Exception as e:
+            print(f"Alphabet model error: {e}")
+        
+        try:
+            if os.path.exists(WORD_MODEL_PATH):
+                self.word_model = keras.models.load_model(WORD_MODEL_PATH)
+                print("Word model loaded")
+            
+            if os.path.exists(WORD_CLASS_PATH):
+                with open(WORD_CLASS_PATH, 'r') as f:
+                    self.word_classes = json.load(f)
+        except Exception as e:
+            print(f"Word model error: {e}")
+    
     def normalize_hand(self, landmarks):
-        """Normalize landmarks"""
         base_x, base_y = landmarks[0][0], landmarks[0][1]
         landmarks[:, 0] -= base_x
         landmarks[:, 1] -= base_y
@@ -91,7 +84,6 @@ class EnhancedISLPredictor:
         return landmarks
     
     def extract_features(self, image):
-        """Extract 84 features"""
         img_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         results = self.hands.process(img_rgb)
         
@@ -112,7 +104,6 @@ class EnhancedISLPredictor:
         return features
     
     def predict_alphabet(self, image):
-        """Predict alphabet with smoothing"""
         if self.alphabet_model is None:
             return {'error': 'Model not loaded'}
         
@@ -123,12 +114,11 @@ class EnhancedISLPredictor:
         input_data = features.reshape(1, 84)
         preds = self.alphabet_model.predict(input_data, verbose=0)[0]
         
-        # Apply confidence threshold
-        if preds.max() < 0.6:  # Below 60% confidence
+        if preds.max() < 0.6:
             return {
                 'letter': '?',
                 'confidence': float(preds.max()),
-                'message': 'Low confidence - hold steady',
+                'message': 'Low confidence',
                 'top_predictions': []
             }
         
@@ -147,7 +137,6 @@ class EnhancedISLPredictor:
         }
     
     def predict_word(self, image):
-        """Predict word with smoothing"""
         if self.word_model is None:
             return {'error': 'Word model not loaded', 'ready': False}
         
@@ -172,10 +161,8 @@ class EnhancedISLPredictor:
             confidence = float(preds[top_idx])
             word = self.word_classes.get(str(top_idx), '?')
             
-            # Add to history for smoothing
             self.prediction_history.append((word, confidence))
             
-            # Smooth predictions - use most common word in last 5 predictions
             if len(self.prediction_history) >= 3:
                 words = [w for w, c in self.prediction_history if c > 0.5]
                 if words:
@@ -188,13 +175,12 @@ class EnhancedISLPredictor:
                 smoothed_word = word
                 avg_confidence = confidence
             
-            # Only return if confidence is reasonable
             if avg_confidence < 0.4:
                 return {
                     'ready': True,
                     'word': '?',
                     'confidence': avg_confidence,
-                    'message': 'Low confidence - sign more clearly',
+                    'message': 'Low confidence',
                     'buffer_size': len(self.sequence_buffer)
                 }
             
@@ -210,7 +196,7 @@ class EnhancedISLPredictor:
                 'ready': False,
                 'buffer_size': len(self.sequence_buffer),
                 'progress': progress,
-               'message': f'Capturing gesture... {progress}%'
+                'message': f'Capturing... {progress}%'
             }
     
     def reset_sequence(self):
@@ -218,6 +204,51 @@ class EnhancedISLPredictor:
         self.prediction_history.clear()
 
 predictor = EnhancedISLPredictor()
+
+def english_to_isl_gloss(text):
+    if USE_SPACY and nlp is not None:
+        try:
+            doc = nlp(text)
+            isl_words = []
+            
+            for token in doc:
+                if token.pos_ in ['NOUN', 'VERB', 'ADJ', 'PRON', 'ADV', 'PROPN', 'NUM']:
+                    word = token.lemma_ if token.pos_ == 'VERB' else token.text
+                    if word and word.isalnum():
+                        isl_words.append(word.lower())
+            
+            return isl_words if isl_words else text.lower().split()
+        except Exception as e:
+            print(f"spaCy error: {e}, falling back to rules")
+    
+    remove_words = {
+        'am', 'is', 'are', 'was', 'were', 'be', 'being', 'been',
+        'have', 'has', 'had', 'do', 'does', 'did',
+        'a', 'an', 'the',
+        'will', 'would', 'should', 'could', 'may', 'might',
+        'very', 'really', 'just', 'quite', 'so'
+    }
+    
+    verb_map = {
+        'eating': 'eat', 'running': 'run', 'going': 'go', 'coming': 'come',
+        'doing': 'do', 'making': 'make', 'taking': 'take', 'giving': 'give',
+        'playing': 'play', 'working': 'work', 'studying': 'study',
+        'learning': 'learn', 'teaching': 'teach', 'helping': 'help',
+        'walking': 'walk', 'talking': 'talk', 'sleeping': 'sleep',
+        'reading': 'read', 'writing': 'write', 'listening': 'listen',
+        'watching': 'watch', 'looking': 'look', 'thinking': 'think'
+    }
+    
+    words = text.lower().split()
+    isl_words = []
+    
+    for word in words:
+        word = word.strip('.,!?;:\'"')
+        if not word or word in remove_words:
+            continue
+        isl_words.append(verb_map.get(word, word))
+    
+    return isl_words if isl_words else text.lower().split()
 
 @app.route('/')
 def index():
@@ -266,67 +297,8 @@ def reset():
     predictor.reset_sequence()
     return jsonify({'status': 'success'})
 
-def english_to_isl_gloss(text):
-    """Convert English to ISL grammar using spaCy NLP or rule-based fallback"""
-    
-    # Try spaCy first (90-95% accuracy)
-    if USE_SPACY and nlp is not None:
-        try:
-            doc = nlp(text)
-            isl_words = []
-            
-            for token in doc:
-                # Keep only content words
-                if token.pos_ in ['NOUN', 'VERB', 'ADJ', 'PRON', 'ADV', 'PROPN', 'NUM']:
-                    # Use lemma (base form) for verbs
-                    if token.pos_ == 'VERB':
-                        word = token.lemma_
-                    else:
-                        word = token.text
-                    
-                    # Skip if empty or punctuation
-                    if word and word.isalnum():
-                        isl_words.append(word.lower())
-            
-            return isl_words if isl_words else text.lower().split()
-        
-        except Exception as e:
-            print(f"spaCy error: {e}, falling back to rules")
-            # Fall through to rule-based method
-    
-    # Rule-based fallback (70-80% accuracy)
-    remove_words = {
-        'am', 'is', 'are', 'was', 'were', 'be', 'being', 'been',
-        'have', 'has', 'had', 'do', 'does', 'did',
-        'a', 'an', 'the',
-        'will', 'would', 'should', 'could', 'may', 'might',
-        'very', 'really', 'just', 'quite', 'so'
-    }
-    
-    verb_map = {
-        'eating': 'eat', 'running': 'run', 'going': 'go', 'coming': 'come',
-        'doing': 'do', 'making': 'make', 'taking': 'take', 'giving': 'give',
-        'playing': 'play', 'working': 'work', 'studying': 'study',
-        'learning': 'learn', 'teaching': 'teach', 'helping': 'help',
-        'walking': 'walk', 'talking': 'talk', 'sleeping': 'sleep',
-        'reading': 'read', 'writing': 'write', 'listening': 'listen',
-        'watching': 'watch', 'looking': 'look', 'thinking': 'think'
-    }
-    
-    words = text.lower().split()
-    isl_words = []
-    
-    for word in words:
-        word = word.strip('.,!?;:\'"')
-        if not word or word in remove_words:
-            continue
-        isl_words.append(verb_map.get(word, word))
-    
-    return isl_words if isl_words else text.lower().split()
-
 @app.route('/api/text-to-sign', methods=['POST'])
 def text_to_sign():
-    """Convert English text to ISL signs with NLP"""
     try:
         data = request.get_json()
         english_text = data.get('text', '').strip()
@@ -334,7 +306,6 @@ def text_to_sign():
         if not english_text:
             return jsonify({'error': 'No text provided'}), 400
         
-        # Convert English to ISL grammar
         isl_words = english_to_isl_gloss(english_text)
         
         signs = []
@@ -349,9 +320,8 @@ def text_to_sign():
             'original': english_text,
             'isl_gloss': ' '.join(isl_words).upper(),
             'signs': signs,
-            'message': f'Converted: "{english_text}" → ISL: "{" ".join(isl_words).upper()}"'
+            'message': f'Converted: "{english_text}" to ISL: "{" ".join(isl_words).upper()}"'
         })
-    
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -375,23 +345,23 @@ def health():
 
 if __name__ == '__main__':
     print("="*60)
-    print("🚀 Enhanced ISL Recognition Server")
+    print("ISL Recognition Server")
     print("="*60)
     print(f"\nServer: http://localhost:5000")
-    print(f"\n📊 Models:")
-    print(f"   Alphabet: {'✅' if predictor.alphabet_model else '❌'}")
-    print(f"   Words: {'✅' if predictor.word_model else '❌'}")
+    print(f"\nModels:")
+    print(f"   Alphabet: {'loaded' if predictor.alphabet_model else 'not found'}")
+    print(f"   Words: {'loaded' if predictor.word_model else 'not found'}")
     
-    print(f"\n🧠 NLP:")
+    print(f"\nNLP:")
     if USE_SPACY:
-        print(f"   Method: spaCy ✅")
+        print(f"   Method: spaCy")
         print(f"   Accuracy: 90-95%")
     else:
         print(f"   Method: Rule-based")
         print(f"   Accuracy: 70-80%")
     
     if predictor.word_classes:
-        print(f"\n📝 Words ({len(predictor.word_classes)}):")
+        print(f"\nWords ({len(predictor.word_classes)}):")
         for word in sorted(predictor.word_classes.values())[:5]:
             print(f"   • {word}")
         if len(predictor.word_classes) > 5:
