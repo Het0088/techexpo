@@ -1,22 +1,12 @@
-/**
- * ISL Recognition - Frontend JavaScript
- * Handles webcam, API calls, and UI interactions
- */
-
-// API Configuration
 const API_BASE_URL = 'http://localhost:5000/api';
-
-// State
 let webcamStream = null;
 let isWebcamActive = false;
-let currentMode = 'alphabet'; // 'alphabet' or 'word'
+let currentMode = 'alphabet';
 let predictionInterval = null;
 let currentLanguage = 'en'; // Default language: English
 let voiceEnabled = false;
 let speechSynthesis = window.speechSynthesis;
 let availableVoices = [];
-
-// DOM Elements
 const webcam = document.getElementById('webcam');
 const canvas = document.getElementById('canvas');
 const videoOverlay = document.getElementById('videoOverlay');
@@ -32,8 +22,6 @@ const languageSelect = document.getElementById('languageSelect');
 const voiceToggle = document.getElementById('voiceToggle');
 const suggestionsDropdown = document.getElementById('suggestionsDropdown');
 const suggestionChips = document.querySelectorAll('.suggestion-chip');
-
-// Common ISL words and phrases for suggestions
 const commonPhrases = [
     { word: 'hello', icon: '👋', category: 'greeting' },
     { word: 'hi', icon: '👋', category: 'greeting' },
@@ -82,8 +70,6 @@ const commonPhrases = [
     { word: 'brother', icon: '👦', category: 'people' },
     { word: 'sister', icon: '👧', category: 'people' },
 ];
-
-// Language translations
 const translations = {
     en: {
         languageChanged: 'Language changed to English',
@@ -113,25 +99,18 @@ const translations = {
         buildingSequence: 'ક્રમ બનાવી રહ્યા છીએ...'
     }
 };
-
-// Initialize
 document.addEventListener('DOMContentLoaded', () => {
     initEventListeners();
     generateAlphabetGrid();
     checkAPIHealth();
-
-    // Initialize page-specific features
     createSuggestionChips();
     initializePhraseLibrary();
     initializeGallery();
-
-    // Load voices for speech synthesis
     loadVoices();
     if (speechSynthesis.onvoiceschanged !== undefined) {
         speechSynthesis.onvoiceschanged = loadVoices;
     }
 });
-
 /**
  * Load available voices
  */
@@ -139,29 +118,22 @@ function loadVoices() {
     availableVoices = speechSynthesis.getVoices();
     console.log('Available voices loaded:', availableVoices.length);
 }
-
 /**
  * Get translation for current language
  */
 function getTranslation(key) {
     return translations[currentLanguage][key] || translations['en'][key];
 }
-
 /**
  * Initialize event listeners
  */
 function initEventListeners() {
-    // Webcam controls
     if (startWebcamBtn) {
         startWebcamBtn.addEventListener('click', startWebcam);
     }
-
-    // Mode switching
     modeBtns.forEach(btn => {
         btn.addEventListener('click', () => switchMode(btn.dataset.mode));
     });
-
-    // Language selection
     if (languageSelect) {
         languageSelect.addEventListener('change', (e) => {
             currentLanguage = e.target.value;
@@ -169,39 +141,26 @@ function initEventListeners() {
             speak(getTranslation('languageChanged'));
         });
     }
-
-    // Voice toggle
     if (voiceToggle) {
         voiceToggle.addEventListener('click', toggleVoice);
     }
-
-    // Text to sign conversion
     if (convertBtn) {
         convertBtn.addEventListener('click', convertTextToSign);
     }
-
     if (textInput) {
         textInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') convertTextToSign();
         });
-
-        // Word suggestions on input
         textInput.addEventListener('input', handleTextInput);
-
-        // Hide suggestions when input loses focus
         textInput.addEventListener('blur', () => {
             setTimeout(() => hideSuggestions(), 200);
         });
-
-        // Show suggestions when input gains focus
         textInput.addEventListener('focus', () => {
             if (textInput.value.trim()) {
                 showSuggestions(textInput.value);
             }
         });
     }
-
-    // Mobile menu toggle
     const menuToggle = document.getElementById('menuToggle');
     if (menuToggle) {
         menuToggle.addEventListener('click', () => {
@@ -209,37 +168,27 @@ function initEventListeners() {
             navMenu.style.display = navMenu.style.display === 'flex' ? 'none' : 'flex';
         });
     }
-
-    // Make community involvement cards clickable
     initInvolvementNavigation();
 }
-
 /**
  * Enable click-through on involvement cards
  */
 function initInvolvementNavigation() {
     const cards = document.querySelectorAll('.involvement-card');
-
     cards.forEach(card => {
         const primaryLink = card.dataset.link || card.querySelector('a.btn')?.getAttribute('href');
         if (!primaryLink || primaryLink === '#') return;
-
         card.style.cursor = 'pointer';
-
-        // Navigate when the card (outside inner links) is clicked
         card.addEventListener('click', (event) => {
             if (event.target.closest('a')) return; // allow built-in anchor behavior
             window.location.href = primaryLink;
         });
-
-        // Ensure the CTA link uses the same target
         const cta = card.querySelector('a.btn');
         if (cta && (!cta.getAttribute('href') || cta.getAttribute('href') === '#')) {
             cta.setAttribute('href', primaryLink);
         }
     });
 }
-
 /**
  * Check API health
  */
@@ -248,7 +197,6 @@ async function checkAPIHealth() {
         const response = await fetch(`${API_BASE_URL.replace('/api', '')}/health`);
         const data = await response.json();
         console.log('API Health:', data);
-
         if (!data.alphabet_model_loaded && !data.word_model_loaded) {
             showNotification('⚠️ Models not loaded. Please train the models first.', 'warning');
         }
@@ -257,7 +205,6 @@ async function checkAPIHealth() {
         showNotification('⚠️ Backend server not running. Start with: python app.py', 'error');
     }
 }
-
 /**
  * Start webcam
  */
@@ -269,21 +216,16 @@ async function startWebcam() {
                 height: { ideal: 480 }
             }
         });
-
         webcam.srcObject = webcamStream;
         videoOverlay.style.display = 'none';
         isWebcamActive = true;
-
-        // Start prediction loop
         startPredictionLoop();
-
         console.log('Webcam started successfully');
     } catch (error) {
         console.error('Error accessing webcam:', error);
         showNotification('❌ Could not access webcam. Please check permissions.', 'error');
     }
 }
-
 /**
  * Stop webcam
  */
@@ -294,73 +236,50 @@ function stopWebcam() {
         isWebcamActive = false;
         videoOverlay.style.display = 'flex';
     }
-
     if (predictionInterval) {
         clearInterval(predictionInterval);
         predictionInterval = null;
     }
 }
-
 /**
  * Switch between alphabet and word mode
  */
 function switchMode(mode) {
     currentMode = mode;
-
-    // Update button states
     modeBtns.forEach(btn => {
         btn.classList.toggle('active', btn.dataset.mode === mode);
     });
-
-    // Reset prediction display
     predictionResult.innerHTML = `<span class="result-label">${getTranslation('waiting')}</span>`;
     confidenceBars.innerHTML = '';
-
-    // Reset word sequence buffer
     if (mode === 'word') {
         resetWordSequence();
     }
-
     console.log('Switched to mode:', mode);
 }
-
 /**
  * Start prediction loop
  */
 function startPredictionLoop() {
-    // Clear existing interval
     if (predictionInterval) {
         clearInterval(predictionInterval);
     }
-
-    // Predict every 500ms for alphabet, 100ms for words (to build sequence)
     const interval = currentMode === 'alphabet' ? 500 : 100;
-
     predictionInterval = setInterval(() => {
         if (isWebcamActive) {
             captureAndPredict();
         }
     }, interval);
 }
-
 /**
  * Capture frame and send for prediction
  */
 async function captureAndPredict() {
     if (!webcam.videoWidth || !webcam.videoHeight) return;
-
-    // Set canvas dimensions
     canvas.width = webcam.videoWidth;
     canvas.height = webcam.videoHeight;
-
-    // Draw current frame to canvas
     const ctx = canvas.getContext('2d');
     ctx.drawImage(webcam, 0, 0);
-
-    // Convert to base64
     const imageData = canvas.toDataURL('image/jpeg', 0.8);
-
-    // Send to API
     try {
         const endpoint = currentMode === 'alphabet' ? '/predict/alphabet' : '/predict/word';
         const response = await fetch(API_BASE_URL + endpoint, {
@@ -370,15 +289,11 @@ async function captureAndPredict() {
             },
             body: JSON.stringify({ image: imageData })
         });
-
         const result = await response.json();
-
         if (result.error) {
             console.error('Prediction error:', result.error);
             return;
         }
-
-        // Display result
         if (currentMode === 'alphabet') {
             displayAlphabetPrediction(result);
         } else {
@@ -388,21 +303,15 @@ async function captureAndPredict() {
         console.error('Prediction request failed:', error);
     }
 }
-
 /**
  * Display alphabet prediction
  */
 function displayAlphabetPrediction(result) {
-    // Main prediction
     predictionResult.innerHTML = `
         <div class="result-letter">${result.letter}</div>
         <div class="result-confidence">${(result.confidence * 100).toFixed(1)}% ${getTranslation('confidence')}</div>
     `;
-
-    // Speak the detected letter
     speak(`${getTranslation('detected')} ${result.letter}`);
-
-    // Top predictions with confidence bars
     confidenceBars.innerHTML = result.top_predictions.map(pred => `
         <div class="confidence-bar">
             <div class="bar-label">${pred.letter}</div>
@@ -413,7 +322,6 @@ function displayAlphabetPrediction(result) {
         </div>
     `).join('');
 }
-
 /**
  * Display word prediction
  */
@@ -423,7 +331,6 @@ function displayWordPrediction(result) {
             <div class="result-letter">${result.word}</div>
             <div class="result-confidence">${(result.confidence * 100).toFixed(1)}% ${getTranslation('confidence')}</div>
         `;
-        // Speak the detected word
         speak(`${getTranslation('detected')} ${result.word}`);
     } else {
         predictionResult.innerHTML = `
@@ -431,7 +338,6 @@ function displayWordPrediction(result) {
         `;
     }
 }
-
 /**
  * Reset word sequence buffer
  */
@@ -444,22 +350,16 @@ async function resetWordSequence() {
         console.error('Failed to reset sequence:', error);
     }
 }
-
 /**
  * Convert text to sign language
  */
 async function convertTextToSign() {
     const text = textInput.value.trim().toLowerCase();
-
     if (!text) {
         showNotification('Please enter some text', 'info');
         return;
     }
-
-    // Show loading
     signsOutput.innerHTML = '<div class="placeholder-text"><p>Converting to signs...</p></div>';
-
-    // Check if it's a known word/phrase first
     const knownWords = {
         'hello': { type: 'word', word: 'Hello', image: 'images/words/hello.png', icon: '👋' },
         'hi': { type: 'word', word: 'Hi', image: 'images/words/hello.png', icon: '👋' },
@@ -476,14 +376,10 @@ async function convertTextToSign() {
         'happy': { type: 'word', word: 'Happy', image: 'images/words/happy.png', icon: '😊' },
         'sad': { type: 'word', word: 'Sad', image: 'images/words/sad.png', icon: '😢' }
     };
-
-    // Check if the entire text is a known phrase
     if (knownWords[text]) {
         displaySignsFromLocal([knownWords[text]]);
         return;
     }
-
-    // Try to fetch from API
     try {
         const response = await fetch(API_BASE_URL + '/text-to-sign', {
             method: 'POST',
@@ -492,23 +388,17 @@ async function convertTextToSign() {
             },
             body: JSON.stringify({ text })
         });
-
         const result = await response.json();
-
         if (result.error) {
-            // Fallback: spell out with alphabet
             displaySignsFromLocal(convertToAlphabet(text));
             return;
         }
-
         displaySigns(result.signs);
     } catch (error) {
         console.error('Text to sign conversion failed, using alphabet fallback:', error);
-        // Fallback: spell out with alphabet
         displaySignsFromLocal(convertToAlphabet(text));
     }
 }
-
 /**
  * Convert text to alphabet signs
  */
@@ -524,7 +414,6 @@ function convertToAlphabet(text) {
         }
     });
 }
-
 /**
  * Display signs from local data
  */
@@ -533,17 +422,14 @@ function displaySignsFromLocal(signs) {
         signsOutput.innerHTML = '<div class="placeholder-text"><p>No signs to display</p></div>';
         return;
     }
-
     signsOutput.innerHTML = signs.map(sign => {
         if (sign.type === 'space') {
             return '<div class="sign-card space-card"><div class="space-indicator">[ Space ]</div></div>';
         }
-
         const fallbackSvg = (ch) => {
             const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><rect width='200' height='200' rx='12' fill='%23f7f9fc'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-family='Poppins, Arial, sans-serif' font-size='100' font-weight='800' fill='%231e3a8a'>${ch}</text></svg>`;
             return `data:image/svg+xml,${encodeURIComponent(svg)}`;
         };
-
         return `
             <div class="sign-card" data-word="${sign.word}">
                 <div class="sign-image-wrapper">
@@ -557,7 +443,6 @@ function displaySignsFromLocal(signs) {
         `;
     }).join('');
 }
-
 /**
  * Display sign language signs
  */
@@ -566,7 +451,6 @@ function displaySigns(signs) {
         signsOutput.innerHTML = '<div class="placeholder-text"><p>No signs to display</p></div>';
         return;
     }
-
     signsOutput.innerHTML = signs.map(sign => {
         if (sign.type === 'image') {
             return `
@@ -583,7 +467,6 @@ function displaySigns(signs) {
                 </div>
             `;
         } else if (sign.type === 'alphabet') {
-            // Break down word into alphabet
             return sign.letters.map(letter => `
                 <div class="sign-card alphabet-sign">
                     <div class="alphabet-letter">${letter.toUpperCase()}</div>
@@ -594,15 +477,12 @@ function displaySigns(signs) {
         return '';
     }).join('');
 }
-
 /**
  * Generate alphabet reference grid
  */
 function generateAlphabetGrid() {
     if (!alphabetGrid) return;
-
     const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-
     alphabetGrid.innerHTML = alphabet.map(letter => `
         <div class="alphabet-card" data-letter="${letter}">
             <div class="alphabet-letter">${letter}</div>
@@ -614,8 +494,6 @@ function generateAlphabetGrid() {
             >
         </div>
     `).join('');
-
-    // Add click handlers
     document.querySelectorAll('.alphabet-card').forEach(card => {
         card.addEventListener('click', () => {
             const letter = card.dataset.letter;
@@ -623,55 +501,40 @@ function generateAlphabetGrid() {
         });
     });
 }
-
 /**
  * Show letter detail (modal or expanded view)
  */
 function showLetterDetail(letter) {
-    // For now, just highlight it
     console.log('Selected letter:', letter);
-    // Could implement a modal here for detailed view
 }
-
 /**
  * Toggle voice assistance
  */
 function toggleVoice(event) {
     if (event) event.preventDefault();
     console.log('Voice toggle clicked! Current state:', voiceEnabled);
-
     voiceEnabled = !voiceEnabled;
-
     if (voiceToggle) {
-        // Remove and add class to trigger animation
         if (voiceEnabled) {
             voiceToggle.classList.add('active');
         } else {
             voiceToggle.classList.remove('active');
         }
-
         const voiceText = voiceToggle.querySelector('.voice-text');
         const voiceIcon = voiceToggle.querySelector('.icon');
-
         if (voiceText) {
             voiceText.textContent = voiceEnabled ? 'Voice: ON' : 'Voice: OFF';
         }
-
         if (voiceIcon) {
             voiceIcon.textContent = voiceEnabled ? '🔊' : '🔇';
         }
     }
-
     console.log('Voice assistance now:', voiceEnabled ? 'ENABLED ✓' : 'DISABLED ✗');
-
-    // Speak confirmation
     const message = voiceEnabled ? getTranslation('voiceEnabled') : getTranslation('voiceDisabled');
     if (voiceEnabled) {
-        // Small delay to ensure voice is ready
         setTimeout(() => speak(message), 100);
     }
 }
-
 /**
  * Text-to-Speech function
  */
@@ -680,54 +543,39 @@ function speak(text) {
         console.log('Speech skipped:', voiceEnabled ? 'no text' : 'voice disabled');
         return;
     }
-
     console.log('Speaking:', text);
-
-    // Cancel any ongoing speech
     speechSynthesis.cancel();
-
     const utterance = new SpeechSynthesisUtterance(text);
-
-    // Set language based on current selection
     const voiceLang = {
         'en': 'en-US',
         'hi': 'hi-IN',
         'gu': 'gu-IN'
     };
-
     utterance.lang = voiceLang[currentLanguage] || 'en-US';
     utterance.rate = 0.9;
     utterance.pitch = 1;
     utterance.volume = 1;
-
-    // Try to find a voice for the selected language
     if (availableVoices.length === 0) {
         availableVoices = speechSynthesis.getVoices();
     }
-
     const preferredVoice = availableVoices.find(voice =>
         voice.lang.includes(currentLanguage) || voice.lang.includes(voiceLang[currentLanguage])
     );
-
     if (preferredVoice) {
         utterance.voice = preferredVoice;
         console.log('Using voice:', preferredVoice.name);
     } else {
         console.log('No specific voice found, using default');
     }
-
     utterance.onerror = (event) => {
         console.error('Speech error:', event);
     };
-
     speechSynthesis.speak(utterance);
 }
-
 /**
  * Show notification
  */
 function showNotification(message, type = 'info') {
-    // Create notification element
     const notification = document.createElement('div');
     notification.className = `notification notification-${type}`;
     notification.textContent = message;
@@ -743,16 +591,12 @@ function showNotification(message, type = 'info') {
         z-index: 10000;
         animation: slideIn 0.3s ease;
     `;
-
     document.body.appendChild(notification);
-
-    // Remove after 4 seconds
     setTimeout(() => {
         notification.style.animation = 'slideOut 0.3s ease';
         setTimeout(() => notification.remove(), 300);
     }, 4000);
 }
-
 /**
  * Handle text input for suggestions
  */
@@ -764,24 +608,19 @@ function handleTextInput(e) {
         hideSuggestions();
     }
 }
-
 /**
  * Show word suggestions based on input
  */
 function showSuggestions(inputValue) {
     if (!suggestionsDropdown) return;
-
     const matchingPhrases = commonPhrases.filter(phrase =>
         phrase.word.toLowerCase().includes(inputValue.toLowerCase())
     );
-
     if (matchingPhrases.length === 0) {
         hideSuggestions();
         return;
     }
-
     suggestionsDropdown.innerHTML = '';
-
     matchingPhrases.slice(0, 8).forEach(phrase => {
         const item = document.createElement('div');
         item.className = 'suggestion-item';
@@ -792,10 +631,8 @@ function showSuggestions(inputValue) {
         item.addEventListener('click', () => selectSuggestion(phrase.word));
         suggestionsDropdown.appendChild(item);
     });
-
     suggestionsDropdown.classList.add('show');
 }
-
 /**
  * Hide suggestions dropdown
  */
@@ -804,7 +641,6 @@ function hideSuggestions() {
         suggestionsDropdown.classList.remove('show');
     }
 }
-
 /**
  * Select a suggestion
  */
@@ -815,15 +651,12 @@ function selectSuggestion(word) {
         textInput.focus();
     }
 }
-
 /**
  * Create quick suggestion chips
  */
 function createSuggestionChips() {
     const chipsContainer = document.getElementById('suggestionChips');
     if (!chipsContainer) return;
-
-    // Show popular phrases as chips
     const popularPhrases = [
         { word: 'hello', icon: '👋' },
         { word: 'thank you', icon: '🙏' },
@@ -834,7 +667,6 @@ function createSuggestionChips() {
         { word: 'sorry', icon: '😔' },
         { word: 'how are you', icon: '😊' }
     ];
-
     popularPhrases.forEach(phrase => {
         const chip = document.createElement('span');
         chip.className = 'suggestion-chip';
@@ -849,7 +681,6 @@ function createSuggestionChips() {
         chipsContainer.appendChild(chip);
     });
 }
-
 /**
  * Initialize Phrase Library
  */
@@ -858,10 +689,7 @@ function initializePhraseLibrary() {
     const phraseModal = document.getElementById('phraseModal');
     const modalClose = document.getElementById('modalClose');
     const categoryBtns = document.querySelectorAll('.category-btn');
-
     if (!phrasesGrid) return;
-
-    // Extended phrase library with meanings and usage
     const phraseLibrary = [
         {
             word: 'hello',
@@ -969,15 +797,11 @@ function initializePhraseLibrary() {
             usage: 'Make roof shape with hands'
         }
     ];
-
     let currentCategory = 'all';
-
-    // Display phrases
     function displayPhrases(category = 'all') {
         const filtered = category === 'all'
             ? phraseLibrary
             : phraseLibrary.filter(p => p.category === category);
-
         phrasesGrid.innerHTML = filtered.map(phrase => `
             <div class="phrase-card" data-phrase='${JSON.stringify(phrase)}'>
                 <div class="phrase-icon">${phrase.icon}</div>
@@ -987,8 +811,6 @@ function initializePhraseLibrary() {
                 </div>
             </div>
         `).join('');
-
-        // Add click handlers
         document.querySelectorAll('.phrase-card').forEach(card => {
             card.addEventListener('click', () => {
                 const phraseData = JSON.parse(card.dataset.phrase);
@@ -996,27 +818,19 @@ function initializePhraseLibrary() {
             });
         });
     }
-
-    // Show modal
     function showPhraseModal(phrase) {
         if (!phraseModal) return;
-
         document.getElementById('modalPhrase').textContent = phrase.word;
         document.getElementById('modalIcon').textContent = phrase.icon;
         document.getElementById('modalMeaning').textContent = phrase.meaning;
         document.getElementById('modalUsage').textContent = phrase.usage;
-
         phraseModal.classList.add('show');
     }
-
-    // Close modal
     if (modalClose) {
         modalClose.addEventListener('click', () => {
             phraseModal.classList.remove('show');
         });
     }
-
-    // Close on outside click
     if (phraseModal) {
         phraseModal.addEventListener('click', (e) => {
             if (e.target === phraseModal) {
@@ -1024,8 +838,6 @@ function initializePhraseLibrary() {
             }
         });
     }
-
-    // Category filter
     categoryBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             categoryBtns.forEach(b => b.classList.remove('active'));
@@ -1034,24 +846,17 @@ function initializePhraseLibrary() {
             displayPhrases(currentCategory);
         });
     });
-
-    // Initial display
     displayPhrases();
 }
-
 /**
  * Initialize Gallery
  */
 function initializeGallery() {
     const galleryTabs = document.querySelectorAll('.gallery-tab');
     const galleryPanels = document.querySelectorAll('.gallery-panel');
-
-    // Only proceed if gallery elements exist
     if (galleryTabs.length === 0 || galleryPanels.length === 0) {
         return; // Gallery not on this page
     }
-
-    // Populate alphabet gallery with detailed information
     const alphabetGallery = document.getElementById('alphabetGallery');
     if (alphabetGallery) {
         const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
@@ -1084,7 +889,6 @@ function initializeGallery() {
             'Y': 'Thumb and pinky extended',
             'Z': 'Draw Z shape with index finger'
         };
-
         alphabetGallery.innerHTML = alphabet.map(letter => `
             <div class="gallery-card" data-letter="${letter}" data-description="${alphabetInfo[letter]}" data-image="${alphabetImageBase}/${letter}.png">
                 <div class="gallery-sign-img">
@@ -1095,8 +899,6 @@ function initializeGallery() {
             </div>
         `).join('');
     }
-
-    // Populate numbers gallery with descriptions
     const numbersGallery = document.getElementById('numbersGallery');
     if (numbersGallery) {
         const numbersInfo = [
@@ -1111,7 +913,6 @@ function initializeGallery() {
             { num: '8', desc: 'Middle, ring, pinky touch thumb', tip: 'Index finger up' },
             { num: '9', desc: 'Touch thumb to index', tip: 'Make small circle' }
         ];
-
         numbersGallery.innerHTML = numbersInfo.map(item => `
             <div class="gallery-card" data-letter="${item.num}" data-description="${item.desc}" data-image="images/numbers/${item.num}.png">
                 <div class="gallery-sign-img">
@@ -1123,8 +924,6 @@ function initializeGallery() {
             </div>
         `).join('');
     }
-
-    // Gesture modal wiring
     const gestureModal = document.getElementById('gestureModal');
     const gestureImg = document.getElementById('gestureImg');
     const gestureTitle = document.getElementById('gestureTitle');
@@ -1132,13 +931,11 @@ function initializeGallery() {
     const gestureLetter = document.getElementById('gestureLetter');
     const gestureFallback = document.getElementById('gestureFallback');
     const gestureClose = document.getElementById('gestureModalClose');
-
     const hideGestureModal = () => {
         if (gestureModal) {
             gestureModal.classList.remove('show');
         }
     };
-
     if (gestureClose) {
         gestureClose.addEventListener('click', hideGestureModal);
     }
@@ -1147,30 +944,24 @@ function initializeGallery() {
             if (e.target === gestureModal) hideGestureModal();
         });
     }
-
     if (alphabetGallery && gestureModal) {
         alphabetGallery.addEventListener('click', (e) => {
             const card = e.target.closest('.gallery-card');
             if (!card) return;
-
-            // Derive metadata from data attributes or visible text
             const letter = (card.dataset.letter || card.querySelector('.sign-placeholder')?.textContent || '').trim();
             if (!letter) return;
             const description = (card.dataset.description || card.querySelector('.sign-description')?.textContent || '').trim();
             const imageSrc = card.dataset.image || `images/alphabet/${letter}.png`;
-
             const fallbackSvg = (ch) => {
                 const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'><rect width='400' height='400' rx='24' fill='%23f7f9fc'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-family='Poppins, Arial, sans-serif' font-size='200' font-weight='800' fill='%231e3a8a'>${ch}</text></svg>`;
                 return `data:image/svg+xml,${encodeURIComponent(svg)}`;
             };
-
             if (gestureTitle) gestureTitle.textContent = `Letter ${letter}`;
             if (gestureDesc) gestureDesc.textContent = description;
             if (gestureLetter) {
                 gestureLetter.textContent = letter;
                 gestureLetter.style.display = 'block';
             }
-
             if (gestureImg) {
                 gestureImg.style.display = 'block';
                 gestureImg.onload = () => {
@@ -1179,7 +970,6 @@ function initializeGallery() {
                     if (gestureFallback) gestureFallback.style.display = 'none';
                 };
                 gestureImg.onerror = () => {
-                    // Use an inline SVG fallback image with the letter
                     const svgUrl = fallbackSvg(letter);
                     if (gestureImg.src !== svgUrl) {
                         gestureImg.src = svgUrl;
@@ -1193,34 +983,27 @@ function initializeGallery() {
                 gestureImg.src = imageSrc || fallbackSvg(letter);
                 gestureImg.alt = `Gesture for letter ${letter}`;
             }
-
             gestureModal.classList.add('show');
         });
     }
-
-    // Add click handlers for numbers gallery
     if (numbersGallery && gestureModal) {
         numbersGallery.addEventListener('click', (e) => {
             const card = e.target.closest('.gallery-card');
             if (!card) return;
-
             const number = (card.dataset.letter || card.querySelector('.sign-placeholder')?.textContent || '').trim();
             if (!number) return;
             const description = (card.dataset.description || card.querySelector('.sign-description')?.textContent || '').trim();
             const imageSrc = card.dataset.image || `images/numbers/${number}.png`;
-
             const fallbackSvg = (ch) => {
                 const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'><rect width='400' height='400' rx='24' fill='%23f7f9fc'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-family='Poppins, Arial, sans-serif' font-size='200' font-weight='800' fill='%231e3a8a'>${ch}</text></svg>`;
                 return `data:image/svg+xml,${encodeURIComponent(svg)}`;
             };
-
             if (gestureTitle) gestureTitle.textContent = `Number ${number}`;
             if (gestureDesc) gestureDesc.textContent = description;
             if (gestureLetter) {
                 gestureLetter.textContent = number;
                 gestureLetter.style.display = 'block';
             }
-
             if (gestureImg) {
                 gestureImg.style.display = 'block';
                 gestureImg.onload = () => {
@@ -1242,12 +1025,9 @@ function initializeGallery() {
                 gestureImg.src = imageSrc || fallbackSvg(number);
                 gestureImg.alt = `Gesture for number ${number}`;
             }
-
             gestureModal.classList.add('show');
         });
     }
-
-    // Populate common words gallery with detailed usage
     const commonGallery = document.getElementById('commonGallery');
     if (commonGallery) {
         const commonWords = [
@@ -1268,7 +1048,6 @@ function initializeGallery() {
             { word: 'Sleep', icon: '😴', desc: 'Rest head on hand', usage: 'Rest or bedtime' },
             { word: 'Learn', icon: '📚', desc: 'Grab from book to head', usage: 'Studying or education' }
         ];
-
         commonGallery.innerHTML = commonWords.map(item => `
             <div class="gallery-card" data-letter="${item.word}" data-description="${item.desc}" data-image="images/words/${item.word.toLowerCase().replace(/\s+/g, '-')}.png">
                 <div class="gallery-sign-img">
@@ -1280,31 +1059,25 @@ function initializeGallery() {
             </div>
         `).join('');
     }
-
-    // Add click handlers for common words gallery
     if (commonGallery && gestureModal) {
         commonGallery.addEventListener('click', (e) => {
             const card = e.target.closest('.gallery-card');
             if (!card) return;
-
             const word = (card.dataset.letter || card.querySelector('.gallery-label')?.textContent || '').trim();
             if (!word) return;
             const description = (card.dataset.description || card.querySelector('.sign-description')?.textContent || '').trim();
             const imageSrc = card.dataset.image || `images/words/${word.toLowerCase().replace(/\s+/g, '-')}.png`;
-
             const fallbackSvg = (text) => {
                 const fontSize = text.length > 5 ? '120' : '150';
                 const svg = `<?xml version="1.0" encoding="UTF-8"?><svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'><rect width='400' height='400' rx='24' fill='%23f7f9fc'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' font-family='Poppins, Arial, sans-serif' font-size='${fontSize}' font-weight='700' fill='%231e3a8a'>${text}</text></svg>`;
                 return `data:image/svg+xml,${encodeURIComponent(svg)}`;
             };
-
             if (gestureTitle) gestureTitle.textContent = word;
             if (gestureDesc) gestureDesc.textContent = description;
             if (gestureLetter) {
                 gestureLetter.textContent = card.querySelector('.sign-placeholder')?.textContent || word;
                 gestureLetter.style.display = 'block';
             }
-
             if (gestureImg) {
                 gestureImg.style.display = 'block';
                 gestureImg.onload = () => {
@@ -1326,25 +1099,17 @@ function initializeGallery() {
                 gestureImg.src = imageSrc || fallbackSvg(word);
                 gestureImg.alt = `Gesture for ${word}`;
             }
-
             gestureModal.classList.add('show');
         });
     }
-
-    // Tab switching with event delegation
     if (galleryTabs.length > 0) {
         galleryTabs.forEach(tab => {
             tab.addEventListener('click', function (e) {
                 e.preventDefault();
                 const targetTab = this.getAttribute('data-tab');
-
                 console.log('Gallery tab clicked:', targetTab); // Debug log
-
-                // Update active tab
                 galleryTabs.forEach(t => t.classList.remove('active'));
                 this.classList.add('active');
-
-                // Show corresponding panel
                 galleryPanels.forEach(panel => {
                     panel.classList.remove('active');
                     if (panel.id === `gallery-${targetTab}`) {
@@ -1354,12 +1119,9 @@ function initializeGallery() {
                 });
             });
         });
-
         console.log('Gallery initialized with', galleryTabs.length, 'tabs'); // Debug log
     }
 }
-
-// Add CSS animations
 const style = document.createElement('style');
 style.textContent = `
     @keyframes slideIn {
@@ -1372,7 +1134,6 @@ style.textContent = `
             opacity: 1;
         }
     }
-    
     @keyframes slideOut {
         from {
             transform: translateX(0);
@@ -1383,7 +1144,6 @@ style.textContent = `
             opacity: 0;
         }
     }
-    
     .result-letter {
         font-size: 3rem;
         font-weight: 800;
@@ -1392,39 +1152,29 @@ style.textContent = `
         -webkit-text-fill-color: transparent;
         background-clip: text;
     }
-    
     .result-confidence {
         font-size: 1rem;
         color: rgba(255, 255, 255, 0.7);
         margin-top: 0.5rem;
     }
-    
     .alphabet-sign {
         background: linear-gradient(135deg, rgba(124, 58, 237, 0.2), rgba(59, 130, 246, 0.2));
     }
 `;
 document.head.appendChild(style);
-
-// Gallery Tab Switching Functionality
 document.querySelectorAll('.gallery-tab').forEach(tab => {
     tab.addEventListener('click', () => {
-        // Reset tabs
         document.querySelectorAll('.gallery-tab').forEach(t => {
             t.style.background = 'white';
             t.style.color = 'var(--navy)';
             t.style.borderColor = 'var(--light-gray)';
         });
-        // Hide all panels
         document.querySelectorAll('.gallery-panel').forEach(panel => {
             panel.style.display = 'none';
         });
-
-        // Activate clicked tab
         tab.style.background = 'var(--primary-blue)';
         tab.style.color = 'white';
         tab.style.borderColor = 'var(--primary-blue)';
-
-        // Show matching panel
         const tabId = tab.getAttribute('data-tab');
         const target = document.getElementById(tabId);
         if (target) {
@@ -1432,29 +1182,18 @@ document.querySelectorAll('.gallery-tab').forEach(tab => {
         }
     });
 });
-
-// Menu Toggle
 document.getElementById('menuToggle')?.addEventListener('click', function () {
     const navMenu = document.querySelector('.nav-menu');
     navMenu.style.display = navMenu.style.display === 'flex' ? 'none' : 'flex';
 });
-
-// Single Page App - Show/Hide Sections
 function showSection(sectionId) {
     console.log('Switching to section:', sectionId);
-
-    // Define which sections to show together for homepage
     const homeSections = ['home', 'demo', 'explore'];
-
-    // Hide all sections
     document.querySelectorAll('section[id]').forEach(section => {
         section.classList.remove('active-section');
         section.style.display = 'none';
     });
-
-    // Show section(s)
     if (sectionId === 'home') {
-        // Show all homepage sections
         homeSections.forEach(id => {
             const section = document.getElementById(id);
             if (section) {
@@ -1463,29 +1202,22 @@ function showSection(sectionId) {
             }
         });
     } else {
-        // Show only the target section
         const targetSection = document.getElementById(sectionId);
         if (targetSection) {
             targetSection.classList.add('active-section');
             targetSection.style.display = 'block';
         }
     }
-
-    // Keep view on the active section instead of jumping to page top
     const scrollTarget = sectionId === 'home' ? document.body : document.getElementById(sectionId);
     if (scrollTarget) {
         scrollTarget.scrollIntoView({ behavior: 'instant', block: 'start' });
     }
     console.log('Showing section:', sectionId);
-
-    // Show/hide footer based on section
     if (sectionId === 'home' || sectionId === 'about') {
         document.body.classList.add('show-footer');
     } else {
         document.body.classList.remove('show-footer');
     }
-
-    // Update active nav link
     document.querySelectorAll('.nav-link').forEach(link => {
         link.classList.remove('active');
     });
@@ -1494,7 +1226,6 @@ function showSection(sectionId) {
         activeLink.classList.add('active');
     }
 }
-
 function getHashSectionId() {
     const hash = window.location.hash.replace('#', '').trim();
     if (hash && document.getElementById(hash)) {
@@ -1502,46 +1233,33 @@ function getHashSectionId() {
     }
     return null;
 }
-
-// Navigation setup - Initialize immediately or on DOM ready
 function initNavigation() {
     console.log('Setting up navigation...');
-
     document.querySelectorAll('a[href^="#"]').forEach(link => {
         link.addEventListener('click', function (e) {
             const href = this.getAttribute('href');
             if (href && href.startsWith('#') && href.length > 1) {
                 e.preventDefault();
                 const sectionId = href.substring(1);
-                // Update hash to enable deep links/back navigation
                 window.location.hash = sectionId;
                 showSection(sectionId);
             }
         });
     });
-
-    // Show section based on hash (default to home)
     const initialSection = getHashSectionId() || 'home';
     console.log('Activating initial section:', initialSection);
     showSection(initialSection);
 }
-
-// Listen for hash changes (e.g., coming from other pages back to a specific section)
 window.addEventListener('hashchange', () => {
     const sectionId = getHashSectionId() || 'home';
     showSection(sectionId);
 });
-
-// Run immediately if DOM is ready, otherwise wait
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initNavigation);
 } else {
     initNavigation();
 }
-
-// Clean up on page unload
 window.addEventListener('beforeunload', () => {
     stopWebcam();
 });
-
 console.log('ISL Recognition Frontend - Ready! 🚀'); console.log('Version: 2.0 - Navigation Active');
