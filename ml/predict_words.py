@@ -5,8 +5,8 @@ from tensorflow import keras
 import json
 from collections import deque, Counter
 
-MODEL_PATH = 'ml/models/isl_words_best.h5'
-CLASSES_PATH = 'ml/models/word_class_indices.json'
+MODEL_PATH = 'ml/models/isl_words_velocity_best.h5'
+CLASSES_PATH = 'ml/models/word_class_indices_velocity.json'
 
 class WordPredictor:
     def __init__(self):
@@ -31,6 +31,7 @@ class WordPredictor:
         self.sequence_buffer = []
         self.sequence_length = 30
         self.prediction_history = deque(maxlen=5)
+        self.previous_features = None
         
         self.confidence_threshold = 0.6
         self.movement_threshold = 0.015
@@ -51,7 +52,7 @@ class WordPredictor:
         results = self.hands.process(img_rgb)
         
         if not results.multi_hand_landmarks:
-            return None
+            return None, results
         
         hand_data = []
         for hand_landmarks in results.multi_hand_landmarks[:2]:
@@ -60,11 +61,20 @@ class WordPredictor:
             hand_data.append(normalized.flatten())
         
         if len(hand_data) == 1:
-            features = np.concatenate([hand_data[0], np.zeros(42)])
+            position_features = np.concatenate([hand_data[0], np.zeros(42)])
         else:
-            features = np.concatenate([hand_data[0], hand_data[1]])
+            position_features = np.concatenate([hand_data[0], hand_data[1]])
         
-        return features
+        if self.previous_features is None:
+            velocity_features = np.zeros(84)
+        else:
+            velocity_features = position_features - self.previous_features
+        
+        self.previous_features = position_features.copy()
+        
+        combined_features = np.concatenate([position_features, velocity_features])
+        
+        return combined_features, results
     
     def calculate_movement(self, sequence):
         if len(sequence) < 2:
@@ -80,7 +90,7 @@ class WordPredictor:
     
     def predict_word(self, features):
         if features is None:
-            return None, 0.0, "No hand detected"
+            return None, 0.0, "No hand detected", 0.0
         
         self.sequence_buffer.append(features)
         
@@ -90,14 +100,14 @@ class WordPredictor:
         buffer_progress = (len(self.sequence_buffer) / self.sequence_length) * 100
         
         if len(self.sequence_buffer) < self.sequence_length:
-            return None, 0.0, f"Capturing: {int(buffer_progress)}%"
+            return None, 0.0, f"Capturing: {int(buffer_progress)}%", 0.0
         
         movement = self.calculate_movement(self.sequence_buffer)
         
         if movement < self.movement_threshold:
-            return "No movement", 0.0, f"Movement too low: {movement:.4f}"
+            return "No movement", 0.0, f"Movement too low", movement
         
-        sequence = np.array(self.sequence_buffer).reshape(1, self.sequence_length, 84)
+        sequence = np.array(self.sequence_buffer).reshape(1, self.sequence_length, 168)
         predictions = self.model.predict(sequence, verbose=0)[0]
         
         top_idx = np.argmax(predictions)
@@ -111,16 +121,17 @@ class WordPredictor:
             if high_conf_words:
                 smoothed_word = Counter(high_conf_words).most_common(1)[0][0]
                 avg_confidence = np.mean([c for w, c in self.prediction_history if w == smoothed_word])
-                return smoothed_word, avg_confidence, f"Movement: {movement:.4f}"
+                return smoothed_word, avg_confidence, "Prediction ready", movement
         
         if confidence < self.confidence_threshold:
-            return "Low confidence", confidence, f"Conf: {confidence:.2f}, Move: {movement:.4f}"
+            return "Low confidence", confidence, f"Conf: {confidence:.2f}", movement
         
-        return predicted_word, confidence, f"Movement: {movement:.4f}"
+        return predicted_word, confidence, "Prediction ready", movement
     
     def reset_sequence(self):
         self.sequence_buffer = []
         self.prediction_history.clear()
+        self.previous_features = None
     
     def draw_landmarks(self, image, results):
         if results.multi_hand_landmarks:
@@ -159,19 +170,15 @@ def test_on_webcam():
         
         frame = cv2.flip(frame, 1)
         
-        features = predictor.extract_features(frame)
-        
-        img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = predictor.hands.process(img_rgb)
+        features, results = predictor.extract_features(frame)
         frame = predictor.draw_landmarks(frame, results)
         
-        word, confidence, status = predictor.predict_word(features)
+        word, confidence, status, movement = predictor.predict_word(features)
         
         buffer_size = len(predictor.sequence_buffer)
         progress = int((buffer_size / predictor.sequence_length) * 100)
         
         if buffer_size >= predictor.sequence_length:
-            movement = predictor.calculate_movement(predictor.sequence_buffer)
             movement_color = (0, 255, 0) if movement >= predictor.movement_threshold else (0, 0, 255)
             cv2.putText(frame, f"Movement: {movement:.4f}", 
                         (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, movement_color, 2)
@@ -195,7 +202,7 @@ def test_on_webcam():
         cv2.putText(frame, "r=reset | q=quit | +/- adjust threshold", 
                     (10, frame.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
         
-        cv2.imshow('ISL Word Recognition with Movement Detection', frame)
+        cv2.imshow('ISL Word Recognition with Velocity', frame)
         
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'):

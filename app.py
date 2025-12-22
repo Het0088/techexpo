@@ -26,8 +26,8 @@ CORS(app)
 
 ALPHABET_MODEL_PATH = 'ml/models/isl_landmark_2hand_best.h5'
 ALPHABET_CLASS_PATH = 'ml/models/landmark_2hand_class_indices.json'
-WORD_MODEL_PATH = 'ml/models/isl_words_best.h5'
-WORD_CLASS_PATH = 'ml/models/word_class_indices.json'
+WORD_MODEL_PATH = 'ml/models/isl_words_velocity_best.h5'
+WORD_CLASS_PATH = 'ml/models/word_class_indices_velocity.json'
 
 class EnhancedISLPredictor:
     def __init__(self):
@@ -38,6 +38,7 @@ class EnhancedISLPredictor:
         self.sequence_buffer = []
         self.sequence_length = 30
         self.prediction_history = deque(maxlen=5)
+        self.previous_features = None
         
         self._load_models()
         
@@ -97,11 +98,20 @@ class EnhancedISLPredictor:
             hand_data.append(normalized.flatten())
         
         if len(hand_data) == 1:
-            features = np.concatenate([hand_data[0], np.zeros(42)])
+            position_features = np.concatenate([hand_data[0], np.zeros(42)])
         else:
-            features = np.concatenate([hand_data[0], hand_data[1]])
+            position_features = np.concatenate([hand_data[0], hand_data[1]])
         
-        return features
+        if self.previous_features is None:
+            velocity_features = np.zeros(84)
+        else:
+            velocity_features = position_features - self.previous_features
+        
+        self.previous_features = position_features.copy()
+        
+        combined_features = np.concatenate([position_features, velocity_features])
+        
+        return combined_features
     
     def predict_alphabet(self, image):
         if self.alphabet_model is None:
@@ -154,7 +164,7 @@ class EnhancedISLPredictor:
             self.sequence_buffer.pop(0)
         
         if len(self.sequence_buffer) == self.sequence_length:
-            sequence = np.array(self.sequence_buffer).reshape(1, 30, 84)
+            sequence = np.array(self.sequence_buffer).reshape(1, 30, 168)
             preds = self.word_model.predict(sequence, verbose=0)[0]
             
             top_idx = np.argmax(preds)
@@ -202,6 +212,7 @@ class EnhancedISLPredictor:
     def reset_sequence(self):
         self.sequence_buffer = []
         self.prediction_history.clear()
+        self.previous_features = None
 
 predictor = EnhancedISLPredictor()
 
